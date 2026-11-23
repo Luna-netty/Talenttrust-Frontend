@@ -7,6 +7,9 @@ import {
   saveRecentCommand,
 } from '@/lib/commands';
 
+// Known-valid Stellar account address (checksum verified by validateAddress).
+const VALID_ADDRESS = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7';
+
 describe('commands library', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -27,13 +30,36 @@ describe('commands library', () => {
       expect(parsed[0].href).toBe('/contracts/101');
     });
 
-    it('parses 56-char Stellar public key as reputation lookup', () => {
-      const address = 'G' + 'B'.repeat(55);
-      expect(address).toHaveLength(56);
-      const parsed = parseDynamicCommands(address);
+    it('offers reputation lookup for a valid Stellar account address', () => {
+      const parsed = parseDynamicCommands(VALID_ADDRESS);
       expect(parsed).toHaveLength(1);
       expect(parsed[0].title).toContain('Look up reputation for');
-      expect(parsed[0].href).toBe(`/reputation?address=${address}`);
+      expect(parsed[0].href).toBe(`/reputation?address=${encodeURIComponent(VALID_ADDRESS)}`);
+    });
+
+    it('does not offer reputation lookup for a wrong-checksum 56-char address', () => {
+      // Same as VALID_ADDRESS with the last character changed: correct shape, bad checksum.
+      const bad = VALID_ADDRESS.slice(0, 55) + (VALID_ADDRESS.endsWith('N') ? 'M' : 'N');
+      expect(bad).toHaveLength(56);
+      expect(parseDynamicCommands(bad)).toEqual([]);
+    });
+
+    it('does not offer reputation lookup for invalid base32 characters', () => {
+      const bad = 'G' + '1'.repeat(55);
+      expect(parseDynamicCommands(bad)).toEqual([]);
+    });
+
+    it('accepts lowercase input and uses the normalized address in href', () => {
+      const parsed = parseDynamicCommands(VALID_ADDRESS.toLowerCase());
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].href).toBe(`/reputation?address=${encodeURIComponent(VALID_ADDRESS)}`);
+    });
+
+    it('accepts valid addresses padded with whitespace and zero-width characters', () => {
+      const padded = `  \u200b${VALID_ADDRESS}\u200d \ufeff `;
+      const parsed = parseDynamicCommands(padded);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].href).toBe(`/reputation?address=${encodeURIComponent(VALID_ADDRESS)}`);
     });
 
     it('returns empty array for non-matching query', () => {

@@ -1,5 +1,6 @@
 import nav from '@/lib/nav.json';
 import { site, apiDocsUrl } from '@/lib/site';
+import { normalizeAddress, validateAddress } from '@/lib/stellar/address';
 
 export interface CommandItem {
   id: string;
@@ -52,17 +53,20 @@ export function parseDynamicCommands(query: string): CommandItem[] {
     });
   }
 
-  // Match Stellar public key (56 chars starting with G)
-  const isStellarAddress = /^G[A-Z0-9]{55}$/.test(trimmed);
-  if (isStellarAddress) {
-    const short = `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`;
-    dynamic.push({
-      id: `dynamic-reputation-${trimmed}`,
-      title: `Look up reputation for ${short}`,
-      subtitle: trimmed,
-      category: 'Reputation',
-      href: `/reputation?address=${trimmed}`,
-    });
+  // Match Stellar account address (G...), validated including checksum
+  if (/^G/i.test(normalizeAddress(trimmed)) || /^[A-Z0-9]{56}$/i.test(normalizeAddress(trimmed))) {
+    const validation = validateAddress(trimmed);
+    if (validation.ok) {
+      const address = validation.value;
+      const short = `${address.slice(0, 6)}...${address.slice(-4)}`;
+      dynamic.push({
+        id: `dynamic-reputation-${address}`,
+        title: `Look up reputation for ${short}`,
+        subtitle: address,
+        category: 'Reputation',
+        href: `/reputation?address=${encodeURIComponent(address)}`,
+      });
+    }
   }
 
   return dynamic;
